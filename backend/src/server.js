@@ -1,37 +1,24 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import { sequelize } from './config/db.js';
+import './models/index.js';
+import { naoEncontrado, tratarErros } from './middlewares/erros.js';
+import authRoutes from './routes/auth.routes.js';
 
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-
-// Carrega as variáveis do arquivo .env
-dotenv.config();
-
-// Inicializa o Express
 const app = express();
 
-// Middlewares
-app.use(cors());
+app.use(cors({ origin: process.env.FRONTEND_URL }));
 app.use(express.json());
+app.use('/api/auth', authRoutes);
 
-// Rota inicial
-app.get("/", (req, res) => {
-  res.json({
-    message: "API do Controle Financeiro funcionando!"
-  });
+app.get('/api/saude', async (req, res) => {
+  const [rows] = await sequelize.query('SELECT NOW() AS agora');
+  res.json({ status: 'ok', banco: rows[0].agora });
 });
 
-// Rota de verificação
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    status: "OK",
-    message: "Servidor funcionando corretamente"
-  });
-});
+app.use(naoEncontrado);
+app.use(tratarErros);
 
-// Porta do servidor
-const PORT = process.env.PORT || 3000;
-
-// Inicializa o servidor
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+const porta = process.env.PORT || 3000;
+app.listen(porta, () => console.log(`API rodando em http://localhost:${porta}`));
