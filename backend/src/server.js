@@ -7,7 +7,7 @@ import { naoEncontrado, tratarErros } from './middlewares/erros.js';
 import authRoutes from './routes/auth.routes.js';
 import categoriasRoutes from './routes/categorias.js';
 import fontesDestinosRoutes from './routes/fontes-destino.js';
-
+import lancamentosRoutes from './routes/lancamentos.js'
 
 const app = express();
 
@@ -16,6 +16,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/categorias', categoriasRoutes);
 app.use('/api/fontes-destinos', fontesDestinosRoutes);
+app.use('/api/lancamentos', lancamentosRoutes);
 
 app.get('/api/saude', async (req, res) => {
   const [rows] = await sequelize.query('SELECT NOW() AS agora');

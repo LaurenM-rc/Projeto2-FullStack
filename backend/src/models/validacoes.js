@@ -13,3 +13,11 @@ export function cpfValido(cpf) {
 }
 
 export const emailValido = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// Aceita só 'AAAA-MM-DD' e rejeita datas que não existem (ex.: 2026-02-30)
+export function dataValida(texto) {
+  if (typeof texto !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(texto)) return false;
+  const [a, m, d] = texto.split('-').map(Number);
+  const dt = new Date(Date.UTC(a, m - 1, d));
+  return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}

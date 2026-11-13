@@ -19,3 +19,20 @@ export const Lancamento = sequelize.define(
   },
   { tableName: 'lancamentos', timestamps: false }
 );
+
+export const criarLancamento = (usuarioId, dados) =>
+  Lancamento.create({ usuario_id: usuarioId, ...dados });
+
+// Converte do formato do banco (snake_case) para o da API (camelCase)
+export const formatarLancamento = (l) => ({
+  id: l.id,
+  tipo: l.tipo,
+  descricao: l.descricao,
+  valor: Number(l.valor),
+  data: l.data,
+  categoriaId: l.categoria_id,
+  fonteDestinoId: l.fonte_destino_id,
+  parcelaAtual: l.parcela_atual,
+  totalParcelas: l.total_parcelas,
+  grupoParcelamento: l.grupo_parcelamento ?? null,
+});

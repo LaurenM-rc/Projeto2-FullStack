@@ -1,4 +1,4 @@
-import { cpfValido, emailValido } from '../models/validacoes.js';
+import { cpfValido, emailValido, dataValida } from '../models/validacoes.js';
 
 export function validarCadastro(req, res, next) {
   const { nome, email, cpf, senha, confirmarSenha } = req.body;
@@ -54,6 +54,38 @@ export function validarFonteDestino(req, res, next) {
       campos.limite = 'Informe o limite do cartão (maior que zero).';
     }
   }
+
+  if (Object.keys(campos).length > 0) {
+    return res.status(400).json({ erro: 'Dados inválidos.', campos });
+  }
+  next();
+}
+
+export function validarLancamento(req, res, next) {
+  const { tipo, descricao, valor, data, categoriaId, fonteDestinoId } = req.body;
+  const campos = {};
+
+  if (!['entrada', 'saida'].includes(tipo)) {
+    campos.tipo = 'O tipo deve ser "entrada" ou "saida".';
+  }
+
+  if (!descricao?.trim()) campos.descricao = 'A descrição é obrigatória.';
+  else if (descricao.trim().length > 120) campos.descricao = 'A descrição deve ter no máximo 120 caracteres.';
+
+  const v = valor === undefined || valor === null || valor === '' ? Number.NaN : Number(valor);
+  if (!Number.isFinite(v) || v <= 0) {
+    campos.valor = 'O valor deve ser maior que zero.';
+  } else if (v >= 1e10) {
+    campos.valor = 'O valor é grande demais.';
+  } else if (Math.abs(v * 100 - Math.round(v * 100)) > 1e-6) {
+    campos.valor = 'O valor deve ter no máximo 2 casas decimais.';
+  }
+
+  if (!dataValida(data)) campos.data = 'Informe uma data válida no formato AAAA-MM-DD.';
+
+  const idOk = (x) => /^\d+$/.test(String(x)) && Number(x) > 0;
+  if (!idOk(categoriaId)) campos.categoriaId = 'Informe a categoria.';
+  if (!idOk(fonteDestinoId)) campos.fonteDestinoId = 'Informe a fonte/destino.';
 
   if (Object.keys(campos).length > 0) {
     return res.status(400).json({ erro: 'Dados inválidos.', campos });
