@@ -25,3 +25,11 @@ export function criarComPadrao({ nome, email, cpf, senhaHash }) {
     return { id: usuario.id, nome: usuario.nome, email: usuario.email };
   });
 }
+
+export function buscarPorEmail(email) {
+  return Usuario.findOne({ where: { email } });
+}
+
+export function buscarPorId(id) {
+  return Usuario.findByPk(id, { attributes: ['id', 'nome', 'email'] });
+}
