@@ -62,7 +62,7 @@ export function validarFonteDestino(req, res, next) {
 }
 
 export function validarLancamento(req, res, next) {
-  const { tipo, descricao, valor, data, categoriaId, fonteDestinoId } = req.body;
+  const { tipo, descricao, valor, data, categoriaId, fonteDestinoId, parcelas } = req.body;
   const campos = {};
 
   if (!['entrada', 'saida'].includes(tipo)) {
@@ -86,9 +86,68 @@ export function validarLancamento(req, res, next) {
   const idOk = (x) => /^\d+$/.test(String(x)) && Number(x) > 0;
   if (!idOk(categoriaId)) campos.categoriaId = 'Informe a categoria.';
   if (!idOk(fonteDestinoId)) campos.fonteDestinoId = 'Informe a fonte/destino.';
-
+  if (parcelas !== undefined && parcelas !== null && parcelas !== '') {
+    if (!/^\d+$/.test(String(parcelas)) || Number(parcelas) < 1 || Number(parcelas) > 48) {
+      campos.parcelas = 'O número de parcelas deve ser um inteiro de 1 a 48.';
+    }
+  }
   if (Object.keys(campos).length > 0) {
     return res.status(400).json({ erro: 'Dados inválidos.', campos });
+  }
+  next();
+}
+
+export function validarFiltrosLancamentos(req, res, next) {
+  const { inicio, fim, tipo, categoriaId, fonteDestinoId, pagina, porPagina } = req.query;
+  const campos = {};
+
+  // Período: os dois juntos ou nenhum (sem nenhum, usa o mês corrente)
+  if ((inicio === undefined) !== (fim === undefined)) {
+    campos[inicio === undefined ? 'inicio' : 'fim'] = 'Informe inicio e fim juntos.';
+  } else if (inicio !== undefined) {
+    if (!dataValida(inicio)) campos.inicio = 'Data inicial inválida. Use AAAA-MM-DD.';
+    if (!dataValida(fim)) campos.fim = 'Data final inválida. Use AAAA-MM-DD.';
+    if (!campos.inicio && !campos.fim && inicio > fim) {
+      campos.fim = 'A data final deve ser igual ou posterior à inicial.';
+    }
+  }
+
+  if (tipo !== undefined && !['entrada', 'saida'].includes(tipo)) {
+    campos.tipo = 'O tipo deve ser "entrada" ou "saida".';
+  }
+
+  const inteiroPositivo = (x) => /^\d+$/.test(String(x)) && Number(x) > 0;
+  if (categoriaId !== undefined && !inteiroPositivo(categoriaId)) {
+    campos.categoriaId = 'Categoria inválida.';
+  }
+  if (fonteDestinoId !== undefined && !inteiroPositivo(fonteDestinoId)) {
+    campos.fonteDestinoId = 'Fonte/destino inválida.';
+  }
+  if (pagina !== undefined && !inteiroPositivo(pagina)) {
+    campos.pagina = 'A página deve ser um inteiro maior que zero.';
+  }
+  if (porPagina !== undefined && (!inteiroPositivo(porPagina) || Number(porPagina) > 100)) {
+    campos.porPagina = 'Itens por página deve ser um inteiro entre 1 e 100.';
+  }
+
+  if (Object.keys(campos).length > 0) {
+    return res.status(400).json({ erro: 'Parâmetros inválidos.', campos });
+  }
+  next();
+}
+
+export function validarPeriodo(req, res, next) {
+  const { inicio, fim } = req.query;
+  const campos = {};
+
+  if (!dataValida(inicio)) campos.inicio = 'Informe a data inicial no formato AAAA-MM-DD.';
+  if (!dataValida(fim)) campos.fim = 'Informe a data final no formato AAAA-MM-DD.';
+  if (!campos.inicio && !campos.fim && inicio > fim) {
+    campos.fim = 'A data final deve ser igual ou posterior à inicial.';
+  }
+
+  if (Object.keys(campos).length > 0) {
+    return res.status(400).json({ erro: 'Parâmetros inválidos.', campos });
   }
   next();
 }
