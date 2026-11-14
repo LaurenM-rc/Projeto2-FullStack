@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api.js';
-import { formatarMoeda, formatarData, mesAtualISO } from '../utils/formatters.js';
+import { formatarMoeda, formatarData, mesAtualISO, periodoDoMes } from '../utils/formatters.js';
 
 export default function Dashboard() {
   const [mes, setMes] = useState(mesAtualISO());
@@ -15,46 +15,16 @@ export default function Dashboard() {
     setCarregando(true);
     setErro('');
     try {
-      const qs = `?mes=${encodeURIComponent(mes)}`;
-      // Tenta buscar de /relatorios/resumo ou /dashboard, com fallback para /lancamentos e /relatorios/categorias
-      const [resumoRes, catRes, lancRes] = await Promise.all([
-        api.get(`/relatorios/resumo${qs}`).catch(() => api.get(`/dashboard${qs}`).catch(() => null)),
-        api.get(`/relatorios/categorias${qs}&tipo=saida`).catch(() => []),
-        api.get(`/lancamentos?limit=5&page=1`).catch(() => []),
+      const { inicio, fim } = periodoDoMes(mes);
+      const qs = `?inicio=${inicio}&fim=${fim}`;
+      // Totais e últimos lançamentos vêm da listagem; despesas por categoria, do relatório
+      const [lancRes, catRes] = await Promise.all([
+        api.get(`/lancamentos${qs}&pagina=1&porPagina=5`),
+        api.get(`/relatorios/categorias${qs}`),
       ]);
-
-      const listaLanc = Array.isArray(lancRes)
-        ? lancRes
-        : lancRes?.itens || lancRes?.lancamentos || lancRes?.data || [];
-      setUltimosLancamentos(listaLanc.slice(0, 5));
-
-      const listaCat = Array.isArray(catRes)
-        ? catRes
-        : catRes?.itens || catRes?.categorias || [];
-      setPorCategoria(listaCat);
-
-      if (resumoRes) {
-        const ent = Number(resumoRes.entradas ?? resumoRes.totalEntradas ?? 0);
-        const sai = Number(resumoRes.saidas ?? resumoRes.totalSaidas ?? 0);
-        setResumo({
-          entradas: ent,
-          saidas: sai,
-          saldo: Number(resumoRes.saldo ?? ent - sai),
-        });
-      } else if (lancRes?.totais || lancRes?.resumo) {
-        const t = lancRes.totais || lancRes.resumo;
-        const ent = Number(t.entradas ?? t.totalEntradas ?? 0);
-        const sai = Number(t.saidas ?? t.totalSaidas ?? 0);
-        setResumo({ entradas: ent, saidas: sai, saldo: Number(t.saldo ?? ent - sai) });
-      } else {
-        const ent = listaLanc
-          .filter((l) => l.tipo === 'entrada')
-          .reduce((acc, l) => acc + Number(l.valor || 0), 0);
-        const sai = listaLanc
-          .filter((l) => l.tipo === 'saida')
-          .reduce((acc, l) => acc + Number(l.valor || 0), 0);
-        setResumo({ entradas: ent, saidas: sai, saldo: ent - sai });
-      }
+      setUltimosLancamentos(lancRes.lancamentos);
+      setResumo(lancRes.totais);
+      setPorCategoria(catRes.categorias.filter((c) => c.total > 0));
     } catch (err) {
       setErro(err.message || 'Não foi possível carregar o resumo do dashboard.');
     } finally {

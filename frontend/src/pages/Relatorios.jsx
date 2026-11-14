@@ -1,50 +1,49 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api.js';
-import { formatarMoeda, mesAtualISO } from '../utils/formatters.js';
+import { formatarMoeda, mesAtualISO, periodoDoMes } from '../utils/formatters.js';
 
 export default function Relatorios() {
   const [aba, setAba] = useState('categorias');
   const [mes, setMes] = useState(mesAtualISO());
   const [tipoCat, setTipoCat] = useState('saida');
 
-  const [relCategorias, setRelCategorias] = useState([]);
+  const [dadosCat, setDadosCat] = useState({ categorias: [], entradas: [] });
   const [relFontes, setRelFontes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
+  const [erroFontes, setErroFontes] = useState('');
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro('');
+    setErroFontes('');
     try {
-      const qsCat = `?mes=${encodeURIComponent(mes)}&tipo=${encodeURIComponent(tipoCat)}`;
-      const qsFonte = `?mes=${encodeURIComponent(mes)}`;
+      const { inicio, fim } = periodoDoMes(mes);
+      const qs = `?inicio=${inicio}&fim=${fim}`;
 
       const [resCat, resFontes] = await Promise.all([
-        api.get(`/relatorios/categorias${qsCat}`),
-        api.get(`/relatorios/fontes-destinos${qsFonte}`).catch(() =>
-          api.get(`/relatorios/contas${qsFonte}`)
-        ),
+        api.get(`/relatorios/categorias${qs}`),
+        api.get(`/relatorios/fontes-destinos${qs}`).catch((err) => {
+          setErroFontes(err.message || 'Erro ao carregar o relatório por fonte/destino.');
+          return null;
+        }),
       ]);
 
-      const listaCat = Array.isArray(resCat)
-        ? resCat
-        : resCat?.itens || resCat?.categorias || [];
-      const listaFontes = Array.isArray(resFontes)
-        ? resFontes
-        : resFontes?.itens || resFontes?.fontesDestinos || resFontes?.contas || [];
-
-      setRelCategorias(listaCat);
-      setRelFontes(listaFontes);
+      setDadosCat(resCat);
+      setRelFontes(resFontes?.fontes || []);
     } catch (err) {
       setErro(err.message || 'Erro ao carregar dados dos relatórios.');
     } finally {
       setCarregando(false);
     }
-  }, [mes, tipoCat]);
+  }, [mes]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // Saídas vêm com percentual e comparação; entradas, só com o total
+  const relCategorias = tipoCat === 'saida' ? dadosCat.categorias : dadosCat.entradas;
 
   const totalGeralCat = relCategorias.reduce(
     (acc, item) => acc + Number(item.total ?? item.valor ?? 0),
@@ -91,6 +90,9 @@ export default function Relatorios() {
       </div>
 
       {erro && <div className="alert alert-erro" role="alert">{erro}</div>}
+      {erroFontes && aba === 'fontes' && (
+        <div className="alert alert-erro" role="alert">{erroFontes}</div>
+      )}
 
       {aba === 'categorias' ? (
         <div className="card">
@@ -190,7 +192,7 @@ export default function Relatorios() {
                             <td><strong>{nome}</strong></td>
                             <td className="td-right">{formatarMoeda(total)}</td>
                             <td className="td-right">{perc.toFixed(1)}%</td>
-                            <td className="td-right">{formatarMoeda(anterior)}</td>
+                            <td className="td-right">{item.periodoAnterior === undefined ? '-' : formatarMoeda(anterior)}</td>
                             <td className="td-right">
                               <span
                                 className={`badge ${
@@ -205,8 +207,8 @@ export default function Relatorios() {
                                     : 'badge-neutro'
                                 }`}
                               >
-                                {variacao > 0 ? '+' : ''}
-                                {variacao.toFixed(1)}%
+                                {variacao > 0 && item.periodoAnterior !== undefined ? '+' : ''}
+                                {item.periodoAnterior === undefined ? '-' : `${variacao.toFixed(1)}%`}
                               </span>
                             </td>
                           </tr>
