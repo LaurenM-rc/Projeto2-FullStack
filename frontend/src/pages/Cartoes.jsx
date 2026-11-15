@@ -1,13 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api.js';
-import { formatarMoeda, formatarData, mesAtualISO } from '../utils/formatters.js';
+import { formatarMoeda, formatarData } from '../utils/formatters.js';
 
-const FORM_INICIAL = {
-  nome: '',
-  limite: '',
-  diaFechamento: '',
-  diaVencimento: '',
-};
+const FORM_INICIAL = { nome: '', limite: '', dia_fechamento: '', dia_vencimento: '' };
 
 export default function Cartoes() {
   const [cartoes, setCartoes] = useState([]);
@@ -21,7 +16,6 @@ export default function Cartoes() {
   const [salvando, setSalvando] = useState(false);
 
   const [cartaoSelecionadoId, setCartaoSelecionadoId] = useState('');
-  const [mesRef, setMesRef] = useState(mesAtualISO());
   const [faturaDados, setFaturaDados] = useState(null);
   const [carregandoFatura, setCarregandoFatura] = useState(false);
   const [erroFatura, setErroFatura] = useState('');
@@ -30,23 +24,12 @@ export default function Cartoes() {
     setCarregando(true);
     setErro('');
     try {
-      let lista = [];
-      try {
-        const res = await api.get('/cartoes');
-        lista = Array.isArray(res) ? res : res?.itens || res?.cartoes || [];
-      } catch {
-        const resContas = await api.get('/contas');
-        const todas = Array.isArray(resContas)
-          ? resContas
-          : resContas?.itens || resContas?.contas || [];
-        lista = todas.filter(
-          (c) => c.tipo === 'cartao_credito' || c.ehCartao || Boolean(c.limite)
-        );
-      }
+      const todas = await api.get('/fontes-destinos');
+      const lista = todas.filter((f) => f.tipo === 'cartao_credito');
       setCartoes(lista);
       setCartaoSelecionadoId((atual) => {
         if (atual && lista.some((c) => String(c.id) === String(atual))) return atual;
-        return lista[0]?.id ? String(lista[0].id) : '';
+        return lista[0] ? String(lista[0].id) : '';
       });
     } catch (err) {
       setErro(err.message || 'Erro ao carregar cartões.');
@@ -59,6 +42,7 @@ export default function Cartoes() {
     carregarCartoes();
   }, [carregarCartoes]);
 
+  // Previsão das próximas faturas, limite utilizado e disponível (calculados no back-end)
   const carregarFatura = useCallback(async () => {
     if (!cartaoSelecionadoId) {
       setFaturaDados(null);
@@ -67,16 +51,14 @@ export default function Cartoes() {
     setCarregandoFatura(true);
     setErroFatura('');
     try {
-      const qs = mesRef ? `?mes=${encodeURIComponent(mesRef)}` : '';
-      const dados = await api.get(`/cartoes/${cartaoSelecionadoId}/faturas${qs}`);
-      setFaturaDados(dados);
+      setFaturaDados(await api.get(`/fontes-destinos/${cartaoSelecionadoId}/faturas`));
     } catch (err) {
       setFaturaDados(null);
       setErroFatura(err.message || 'Não foi possível carregar a previsão de faturas.');
     } finally {
       setCarregandoFatura(false);
     }
-  }, [cartaoSelecionadoId, mesRef]);
+  }, [cartaoSelecionadoId]);
 
   useEffect(() => {
     carregarFatura();
@@ -93,10 +75,10 @@ export default function Cartoes() {
     setSucesso('');
     setEditandoId(cartao.id);
     setForm({
-      nome: cartao.nome || '',
-      limite: cartao.limite != null ? String(cartao.limite) : '',
-      diaFechamento: String(cartao.diaFechamento ?? cartao.dia_fechamento ?? ''),
-      diaVencimento: String(cartao.diaVencimento ?? cartao.dia_vencimento ?? ''),
+      nome: cartao.nome,
+      limite: String(cartao.limite ?? ''),
+      dia_fechamento: String(cartao.dia_fechamento ?? ''),
+      dia_vencimento: String(cartao.dia_vencimento ?? ''),
     });
     setErrosForm({});
   }
@@ -104,12 +86,12 @@ export default function Cartoes() {
   function validar() {
     const e = {};
     const lim = Number(form.limite);
-    const fech = Number(form.diaFechamento);
-    const venc = Number(form.diaVencimento);
+    const fech = Number(form.dia_fechamento);
+    const venc = Number(form.dia_vencimento);
     if (!form.nome.trim()) e.nome = 'Informe o nome do cartão.';
-    if (!form.limite || Number.isNaN(lim) || lim <= 0) e.limite = 'Informe um limite positivo.';
-    if (!fech || fech < 1 || fech > 31) e.diaFechamento = 'Dia entre 1 e 31.';
-    if (!venc || venc < 1 || venc > 31) e.diaVencimento = 'Dia entre 1 e 31.';
+    if (!form.limite || Number.isNaN(lim) || lim <= 0) e.limite = 'Informe um limite maior que zero.';
+    if (!Number.isInteger(fech) || fech < 1 || fech > 31) e.dia_fechamento = 'Dia entre 1 e 31.';
+    if (!Number.isInteger(venc) || venc < 1 || venc > 31) e.dia_vencimento = 'Dia entre 1 e 31.';
     return e;
   }
 
@@ -126,23 +108,22 @@ export default function Cartoes() {
       const payload = {
         nome: form.nome.trim(),
         tipo: 'cartao_credito',
-        ehCartao: true,
         limite: Number(form.limite),
-        diaFechamento: Number(form.diaFechamento),
-        diaVencimento: Number(form.diaVencimento),
+        dia_fechamento: Number(form.dia_fechamento),
+        dia_vencimento: Number(form.dia_vencimento),
       };
-
       if (editandoId) {
-        await api.put(`/cartoes/${editandoId}`, payload);
+        await api.put(`/fontes-destinos/${editandoId}`, payload);
         setSucesso('Cartão atualizado com sucesso.');
       } else {
-        await api.post('/cartoes', payload);
+        await api.post('/fontes-destinos', payload);
         setSucesso('Cartão cadastrado com sucesso.');
       }
       limparFormulario();
       await carregarCartoes();
       await carregarFatura();
     } catch (err) {
+      setErrosForm(err.campos || {});
       setErro(err.message || 'Erro ao salvar cartão.');
     } finally {
       setSalvando(false);
@@ -154,49 +135,22 @@ export default function Cartoes() {
     setErro('');
     setSucesso('');
     try {
-      await api.delete(`/cartoes/${cartao.id}`);
+      await api.delete(`/fontes-destinos/${cartao.id}`);
       setSucesso('Cartão excluído com sucesso.');
       if (editandoId === cartao.id) limparFormulario();
       await carregarCartoes();
     } catch (err) {
-      setErro(
-        err.message || 'Não foi possível excluir o cartão. Verifique se há compras vinculadas.'
-      );
+      setErro(err.message || 'Não foi possível excluir o cartão.');
     }
   }
 
   const cartaoAtual = cartoes.find((c) => String(c.id) === String(cartaoSelecionadoId));
-  const limiteTotal = Number(
-    faturaDados?.limite ?? faturaDados?.limiteTotal ?? cartaoAtual?.limite ?? 0
-  );
-  const limiteUtilizado = Number(
-    faturaDados?.limiteUtilizado ??
-      faturaDados?.limite_utilizado ??
-      cartaoAtual?.limiteUtilizado ??
-      0
-  );
-  const limiteDisponivel = Number(
-    faturaDados?.limiteDisponivel ??
-      faturaDados?.limite_disponivel ??
-      Math.max(0, limiteTotal - limiteUtilizado)
-  );
+  const limiteTotal = Number(faturaDados?.limite ?? cartaoAtual?.limite ?? 0);
+  const limiteUtilizado = Number(faturaDados?.limiteUtilizado ?? 0);
+  const limiteDisponivel = Number(faturaDados?.limiteDisponivel ?? limiteTotal - limiteUtilizado);
   const percentualUso =
     limiteTotal > 0 ? Math.min(100, Math.round((limiteUtilizado / limiteTotal) * 100)) : 0;
-
-  const previsoes = Array.isArray(faturaDados?.previsoes)
-    ? faturaDados.previsoes
-    : Array.isArray(faturaDados?.faturas)
-    ? faturaDados.faturas
-    : Array.isArray(faturaDados)
-    ? faturaDados
-    : [];
-
-  const itensFaturaAtual =
-    faturaDados?.itens ||
-    faturaDados?.lancamentos ||
-    faturaDados?.faturaAtual?.itens ||
-    previsoes[0]?.itens ||
-    [];
+  const faturas = faturaDados?.faturas || [];
 
   return (
     <section>
@@ -243,11 +197,11 @@ export default function Cartoes() {
                 min="1"
                 max="31"
                 placeholder="Ex.: 10"
-                value={form.diaFechamento}
-                onChange={(e) => setForm({ ...form, diaFechamento: e.target.value })}
+                value={form.dia_fechamento}
+                onChange={(e) => setForm({ ...form, dia_fechamento: e.target.value })}
               />
-              {errosForm.diaFechamento && (
-                <span className="msg msg-erro">{errosForm.diaFechamento}</span>
+              {errosForm.dia_fechamento && (
+                <span className="msg msg-erro">{errosForm.dia_fechamento}</span>
               )}
             </label>
 
@@ -258,11 +212,11 @@ export default function Cartoes() {
                 min="1"
                 max="31"
                 placeholder="Ex.: 17"
-                value={form.diaVencimento}
-                onChange={(e) => setForm({ ...form, diaVencimento: e.target.value })}
+                value={form.dia_vencimento}
+                onChange={(e) => setForm({ ...form, dia_vencimento: e.target.value })}
               />
-              {errosForm.diaVencimento && (
-                <span className="msg msg-erro">{errosForm.diaVencimento}</span>
+              {errosForm.dia_vencimento && (
+                <span className="msg msg-erro">{errosForm.dia_vencimento}</span>
               )}
             </label>
           </div>
@@ -297,46 +251,38 @@ export default function Cartoes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {cartoes.map((c) => {
-                    const fech = c.diaFechamento ?? c.dia_fechamento;
-                    const venc = c.diaVencimento ?? c.dia_vencimento;
-                    return (
-                      <tr key={c.id}>
-                        <td>
-                          <strong>{c.nome}</strong>
-                        </td>
-                        <td>
-                          Fecha dia {fech} • Vence dia {venc}
-                        </td>
-                        <td className="td-right">{formatarMoeda(c.limite)}</td>
-                        <td>
-                          <div className="td-actions">
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => setCartaoSelecionadoId(String(c.id))}
-                            >
-                              Ver faturas
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => iniciarEdicao(c)}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-danger btn-sm"
-                              onClick={() => excluir(c)}
-                            >
-                              Excluir
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {cartoes.map((c) => (
+                    <tr key={c.id}>
+                      <td><strong>{c.nome}</strong></td>
+                      <td>Fecha dia {c.dia_fechamento} • Vence dia {c.dia_vencimento}</td>
+                      <td className="td-right">{formatarMoeda(c.limite)}</td>
+                      <td>
+                        <div className="td-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setCartaoSelecionadoId(String(c.id))}
+                          >
+                            Ver faturas
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => iniciarEdicao(c)}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => excluir(c)}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -344,30 +290,21 @@ export default function Cartoes() {
         </div>
       </div>
 
-      {/* Seção de Faturas e Previsões */}
       <div className="card">
         <div className="page-header">
-          <h2 style={{ margin: 0 }}>Faturas, Limite e Previsão de Parcelas Futuras</h2>
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <select
-              value={cartaoSelecionadoId}
-              onChange={(e) => setCartaoSelecionadoId(e.target.value)}
-              aria-label="Selecionar cartão"
-            >
-              {cartoes.length === 0 && <option value="">Nenhum cartão</option>}
-              {cartoes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
-            </select>
-            <input
-              type="month"
-              value={mesRef}
-              onChange={(e) => setMesRef(e.target.value)}
-              aria-label="Mês de referência"
-            />
-          </div>
+          <h2 style={{ margin: 0 }}>Faturas, limite e previsão das próximas faturas</h2>
+          <select
+            value={cartaoSelecionadoId}
+            onChange={(e) => setCartaoSelecionadoId(e.target.value)}
+            aria-label="Selecionar cartão"
+          >
+            {cartoes.length === 0 && <option value="">Nenhum cartão</option>}
+            {cartoes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
         </div>
 
         {!cartaoSelecionadoId ? (
@@ -386,7 +323,7 @@ export default function Cartoes() {
                 <div className="kpi-value">{formatarMoeda(limiteTotal)}</div>
               </div>
               <div className="kpi-card">
-                <div className="kpi-label">Limite Utilizado (Parcelas em aberto)</div>
+                <div className="kpi-label">Limite Utilizado</div>
                 <div className="kpi-value valor-saida">{formatarMoeda(limiteUtilizado)}</div>
               </div>
               <div className="kpi-card">
@@ -403,76 +340,60 @@ export default function Cartoes() {
                 </span>
               </div>
               <div className="chart-bar-bg">
-                <div
-                  className="chart-bar-fill saida"
-                  style={{ width: `${percentualUso}%` }}
-                />
+                <div className="chart-bar-fill saida" style={{ width: `${percentualUso}%` }} />
               </div>
               {cartaoAtual && (
                 <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginTop: '0.4rem' }}>
-                  Regra de fechamento: compras realizadas a partir do dia{' '}
-                  <strong>{cartaoAtual.diaFechamento ?? cartaoAtual.dia_fechamento}</strong> entram
-                  na fatura do mês seguinte.
+                  Regra de fechamento: compras feitas a partir do dia{' '}
+                  <strong>{cartaoAtual.dia_fechamento}</strong> (inclusive) entram na fatura do mês
+                  seguinte.
                 </p>
               )}
             </div>
 
-            <h3>Previsão das próximas faturas</h3>
-            {previsoes.length === 0 ? (
-              <div className="empty-state">Nenhuma previsão de fatura retornada para o período.</div>
+            <h3>Próximas faturas</h3>
+            {faturas.length === 0 ? (
+              <div className="empty-state">Nenhuma fatura prevista para este cartão.</div>
             ) : (
-              <div className="grid-kpis" style={{ marginTop: '0.75rem' }}>
-                {previsoes.map((f, idx) => (
-                  <div key={f.mes || f.competencia || idx} className="kpi-card">
-                    <div className="kpi-label">
-                      Fatura {f.mes || f.competencia || f.referencia || `#${idx + 1}`}
-                      {f.vencimento ? ` • Vence em ${formatarData(f.vencimento)}` : ''}
-                    </div>
-                    <div className="kpi-value valor-saida">
-                      {formatarMoeda(f.total ?? f.valor ?? 0)}
-                    </div>
-                    {f.quantidadeItens != null && (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--texto-suave)' }}>
-                        {f.quantidadeItens} lançamento(s)
-                      </div>
-                    )}
+              faturas.map((f) => (
+                <div key={f.mes} style={{ marginTop: '1rem' }}>
+                  <div className="chart-item-header">
+                    <strong>
+                      Fatura {f.mes}
+                      {f.vencimento ? ` • vence em ${formatarData(f.vencimento)}` : ''}
+                    </strong>
+                    <strong className="valor-saida">{formatarMoeda(f.total)}</strong>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {itensFaturaAtual.length > 0 && (
-              <div style={{ marginTop: '1rem' }}>
-                <h3>Lançamentos / parcelas na fatura selecionada</h3>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Data da Compra</th>
-                        <th>Descrição</th>
-                        <th>Parcela</th>
-                        <th className="th-right">Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {itensFaturaAtual.map((item, i) => (
-                        <tr key={item.id || i}>
-                          <td>{formatarData(item.data || item.dataCompra)}</td>
-                          <td>{item.descricao}</td>
-                          <td>
-                            {item.numeroParcela && item.totalParcelas
-                              ? `${item.numeroParcela}/${item.totalParcelas}`
-                              : item.parcela || 'À vista'}
-                          </td>
-                          <td className="td-right valor-saida">
-                            {formatarMoeda(item.valor)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {f.itens?.length > 0 && (
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Data da compra</th>
+                            <th>Descrição</th>
+                            <th>Parcela</th>
+                            <th className="th-right">Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {f.itens.map((item) => (
+                            <tr key={item.id}>
+                              <td>{formatarData(item.data)}</td>
+                              <td>{item.descricao}</td>
+                              <td>
+                                {item.totalParcelas > 1
+                                  ? `${item.parcelaAtual}/${item.totalParcelas}`
+                                  : 'À vista'}
+                              </td>
+                              <td className="td-right valor-saida">{formatarMoeda(item.valor)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ))
             )}
           </>
         )}

@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 export default function Login() {
-  const { login, loginDemo, autenticado } = useAuth();
+  const { login, autenticado } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -29,12 +29,6 @@ export default function Login() {
       setCarregando(false);
     }
   }
-
-  function entrarDemo() {
-    loginDemo();
-    navigate('/', { replace: true });
-  }
-
   return (
     <div className="auth-page">
       <form className="card auth-card" onSubmit={enviar} noValidate>
@@ -68,16 +62,6 @@ export default function Login() {
         <button className="btn" disabled={carregando}>
           {carregando ? 'Entrando...' : 'Entrar'}
         </button>
-
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ marginTop: '0.5rem' }}
-          onClick={entrarDemo}
-        >
-          Visualizar telas (Modo Demonstração)
-        </button>
-
         <p className="auth-link">
           Não tem conta? <Link to="/cadastro">Cadastre-se</Link>
         </p>

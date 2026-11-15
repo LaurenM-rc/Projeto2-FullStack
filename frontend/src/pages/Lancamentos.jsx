@@ -59,7 +59,7 @@ export default function Lancamentos() {
       try {
         const [catsRes, contasRes] = await Promise.all([
           api.get('/categorias').catch(() => []),
-          api.get('/contas').catch(() => []),
+          api.get('/fontes-destinos').catch(() => []),
         ]);
         const listaCats = Array.isArray(catsRes)
           ? catsRes
@@ -82,13 +82,16 @@ export default function Lancamentos() {
     setErro('');
     try {
       const params = new URLSearchParams();
-      if (filtros.dataInicio) params.set('dataInicio', filtros.dataInicio);
-      if (filtros.dataFim) params.set('dataFim', filtros.dataFim);
+      // A API exige inicio e fim juntos; sem eles, lista o mês corrente
+      if (filtros.dataInicio && filtros.dataFim) {
+        params.set('inicio', filtros.dataInicio);
+        params.set('fim', filtros.dataFim);
+      }
       if (filtros.tipo) params.set('tipo', filtros.tipo);
       if (filtros.categoriaId) params.set('categoriaId', filtros.categoriaId);
       if (filtros.fonteDestinoId) params.set('fonteDestinoId', filtros.fonteDestinoId);
-      params.set('page', String(filtros.pagina));
-      params.set('limit', String(filtros.limite));
+      params.set('pagina', String(filtros.pagina));
+      params.set('porPagina', String(filtros.limite));
 
       const qs = params.toString() ? `?${params.toString()}` : '';
       const dados = await api.get(`/lancamentos${qs}`);
@@ -222,8 +225,7 @@ export default function Lancamentos() {
         data: form.data,
         categoriaId: Number(form.categoriaId),
         fonteDestinoId: Number(form.fonteDestinoId),
-        contaId: Number(form.fonteDestinoId),
-        totalParcelas: ehCompraCartao ? Number(form.totalParcelas || 1) : 1,
+        parcelas: ehCompraCartao ? Number(form.totalParcelas || 1) : 1,
       };
 
       if (editandoId) {
@@ -236,6 +238,7 @@ export default function Lancamentos() {
       limparFormulario();
       await carregarLancamentos();
     } catch (err) {
+      setErrosForm({ ...err.campos, totalParcelas: err.campos?.parcelas });
       setErro(err.message || 'Erro ao salvar lançamento.');
     } finally {
       setSalvando(false);
@@ -247,7 +250,11 @@ export default function Lancamentos() {
     setErro('');
     setSucesso('');
     try {
-      await api.delete(`/lancamentos/${lanc.id}`);
+      // Compra parcelada: pergunta se exclui todas as parcelas ou só esta
+      const todas =
+        lanc.totalParcelas > 1 &&
+        window.confirm('Compra parcelada: OK exclui TODAS as parcelas; Cancelar exclui só esta parcela.');
+      await api.delete(`/lancamentos/${lanc.id}${todas ? '?todasParcelas=true' : ''}`);
       setSucesso('Lançamento excluído com sucesso.');
       if (editandoId === lanc.id) limparFormulario();
       await carregarLancamentos();
@@ -525,8 +532,8 @@ export default function Lancamentos() {
                   </thead>
                   <tbody>
                     {lancamentos.map((l) => {
-                      const numParc = l.numeroParcela ?? l.numero_parcela;
-                      const totParc = l.totalParcelas ?? l.total_parcelas;
+                      const numParc = l.parcelaAtual;
+                      const totParc = l.totalParcelas;
                       return (
                         <tr key={l.id}>
                           <td>{formatarData(l.data)}</td>

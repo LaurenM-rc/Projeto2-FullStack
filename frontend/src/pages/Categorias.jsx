@@ -72,6 +72,7 @@ export default function Categorias() {
       limparFormulario();
       await carregar();
     } catch (err) {
+      setErrosForm(err.campos || {});
       setErro(err.message || 'Não foi possível salvar a categoria.');
     } finally {
       setSalvando(false);

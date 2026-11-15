@@ -26,3 +26,10 @@ export const hojeISO = () => {
 };
 
 export const mesAtualISO = () => hojeISO().slice(0, 7);
+
+// "2026-11" -> { inicio: '2026-11-01', fim: '2026-11-30' }
+export function periodoDoMes(mes) {
+  const [ano, m] = mes.split('-').map(Number);
+  const ultimo = new Date(ano, m, 0).getDate();
+  return { inicio: `${mes}-01`, fim: `${mes}-${String(ultimo).padStart(2, '0')}` };
+}

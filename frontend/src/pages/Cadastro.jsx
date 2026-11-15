@@ -24,7 +24,9 @@ export default function Cadastro() {
     if (!form.nome.trim()) e.nome = 'Informe o nome.';
     if (!EMAIL_REGEX.test(form.email)) e.email = 'Informe um e-mail válido.';
     if (somenteDigitos(form.cpf).length !== 11) e.cpf = 'O CPF deve ter 11 dígitos.';
-    if (form.senha.length < 6) e.senha = 'A senha deve ter ao menos 6 caracteres.';
+    if (form.senha.length < 8 || !/[A-Za-z]/.test(form.senha) || !/\d/.test(form.senha)) {
+      e.senha = 'A senha deve ter no mínimo 8 caracteres, com letras e números.';
+    }
     if (form.senha !== form.confirmar) e.confirmar = 'As senhas não coincidem.';
     return e;
   }
@@ -43,13 +45,15 @@ export default function Cadastro() {
         email: form.email.trim(),
         cpf: form.cpf,
         senha: form.senha,
+        confirmarSenha: form.confirmar,
       });
       navigate('/login', { replace: true });
     } catch (err) {
-      // 409: e-mail ou CPF já cadastrado
-      setErroGeral(
-        err.status === 409 ? err.message || 'E-mail ou CPF já cadastrado.' : err.message
-      );
+      // 400/409: o servidor devolve os erros por campo (ex.: e-mail ou CPF já cadastrado)
+      const campos = { ...err.campos };
+      if (campos.confirmarSenha) campos.confirmar = campos.confirmarSenha;
+      setErros(campos);
+      if (!Object.keys(campos).length) setErroGeral(err.message);
     } finally {
       setCarregando(false);
     }
