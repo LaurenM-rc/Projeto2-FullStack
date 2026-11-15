@@ -30,3 +30,10 @@ export function periodoAnterior(inicio, fim) {
     fim: paraISO(fimAnterior),
   };
 }
+
+// Data de hoje no formato AAAA-MM-DD (fuso do servidor)
+export function hojeISO() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

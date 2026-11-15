@@ -4,6 +4,7 @@ import { validarCadastro } from '../middlewares/validacao.js';
 import jwt from 'jsonwebtoken';
 import { autenticar } from '../middlewares/autenticar.js';
 import { criarComPadrao, buscarPorEmail, buscarPorId } from '../models/Usuario.js';
+import { limitarLogin } from '../middlewares/limitarLogin.js';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.post('/cadastro', validarCadastro, async (req, res, next) => {
   }
 });
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', limitarLogin, async (req, res, next) => {
   try {
     const { email, senha } = req.body;
     if (!email || !senha) {
@@ -55,6 +56,7 @@ router.post('/login', async (req, res, next) => {
     next(erro);
   }
 });
+
 
 router.get('/me', autenticar, async (req, res, next) => {
   try {

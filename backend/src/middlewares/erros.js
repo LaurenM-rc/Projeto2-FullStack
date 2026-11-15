@@ -5,6 +5,12 @@ export function naoEncontrado(req, res) {
 }
 
 export function tratarErros(erro, req, res, next) {
+  if (erro.type === 'entity.parse.failed') {
+    return res.status(400).json({ erro: 'JSON inválido no corpo da requisição.' });
+  }
+  if (erro.type === 'entity.too.large') {
+    return res.status(413).json({ erro: 'Corpo da requisição grande demais.' });
+  }
   console.error(erro);
   res.status(500).json({ erro: 'Erro interno do servidor.' });
 }

@@ -151,3 +151,14 @@ export function validarPeriodo(req, res, next) {
   }
   next();
 }
+
+export function validarMeses(req, res, next) {
+  const { meses } = req.query;
+  if (meses !== undefined && (!/^\d+$/.test(String(meses)) || Number(meses) < 1 || Number(meses) > 12)) {
+    return res.status(400).json({
+      erro: 'Parâmetros inválidos.',
+      campos: { meses: 'Informe um número de meses de 1 a 12.' },
+    });
+  }
+  next();
+}
