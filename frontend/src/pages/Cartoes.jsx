@@ -42,7 +42,7 @@ export default function Cartoes() {
     carregarCartoes();
   }, [carregarCartoes]);
 
-  // Previsão das próximas faturas, limite utilizado e disponível (calculados no back-end)
+  // Previsão das faturas de todos os cartões (calculadas no back-end); a tela mostra o selecionado
   const carregarFatura = useCallback(async () => {
     if (!cartaoSelecionadoId) {
       setFaturaDados(null);
@@ -51,7 +51,9 @@ export default function Cartoes() {
     setCarregandoFatura(true);
     setErroFatura('');
     try {
-      setFaturaDados(await api.get(`/fontes-destinos/${cartaoSelecionadoId}/faturas`));
+      const resposta = await api.get('/relatorios/faturas');
+      const encontrado = resposta.cartoes.find((c) => String(c.id) === String(cartaoSelecionadoId));
+      setFaturaDados(encontrado ?? null);
     } catch (err) {
       setFaturaDados(null);
       setErroFatura(err.message || 'Não foi possível carregar a previsão de faturas.');
@@ -151,6 +153,7 @@ export default function Cartoes() {
   const percentualUso =
     limiteTotal > 0 ? Math.min(100, Math.round((limiteUtilizado / limiteTotal) * 100)) : 0;
   const faturas = faturaDados?.faturas || [];
+  const fechamentoAtual = cartaoAtual?.dia_fechamento;
 
   return (
     <section>
@@ -356,15 +359,16 @@ export default function Cartoes() {
               <div className="empty-state">Nenhuma fatura prevista para este cartão.</div>
             ) : (
               faturas.map((f) => (
-                <div key={f.mes} style={{ marginTop: '1rem' }}>
+                <div key={f.referencia} style={{ marginTop: '1rem' }}>
                   <div className="chart-item-header">
                     <strong>
-                      Fatura {f.mes}
+                      Fatura {f.referencia}
+                      {f.situacao === 'aberta' ? ' (aberta)' : f.situacao === 'fechada' ? ' (fechada)' : ''}
                       {f.vencimento ? ` • vence em ${formatarData(f.vencimento)}` : ''}
                     </strong>
                     <strong className="valor-saida">{formatarMoeda(f.total)}</strong>
                   </div>
-                  {f.itens?.length > 0 && (
+                  {f.lancamentos?.length > 0 ? (
                     <div className="table-wrap">
                       <table>
                         <thead>
@@ -376,21 +380,21 @@ export default function Cartoes() {
                           </tr>
                         </thead>
                         <tbody>
-                          {f.itens.map((item) => (
+                          {f.lancamentos.map((item) => (
                             <tr key={item.id}>
-                              <td>{formatarData(item.data)}</td>
+                              <td>{formatarData(item.dataCompra)}</td>
                               <td>{item.descricao}</td>
-                              <td>
-                                {item.totalParcelas > 1
-                                  ? `${item.parcelaAtual}/${item.totalParcelas}`
-                                  : 'À vista'}
-                              </td>
+                              <td>{item.parcela ?? 'À vista'}</td>
                               <td className="td-right valor-saida">{formatarMoeda(item.valor)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                  ) : (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--texto-suave)', margin: '0.4rem 0 0' }}>
+                      Sem lançamentos nesta fatura.
+                    </p>
                   )}
                 </div>
               ))
@@ -400,4 +404,4 @@ export default function Cartoes() {
       </div>
     </section>
   );
-}
+      }
