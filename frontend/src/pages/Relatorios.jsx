@@ -30,7 +30,17 @@ export default function Relatorios() {
       ]);
 
       setDadosCat(resCat);
-      setRelFontes(resFontes?.fontes || []);
+      // A API devolve entradas e saídas em listas separadas: junta por fonte/destino
+    const porFonte = new Map();
+    for (const e of resFontes?.entradas || []) {
+      porFonte.set(e.id, { id: e.id, nome: e.nome, entradas: e.total, saidas: 0 });
+    }
+    for (const s of resFontes?.saidas || []) {
+      const item = porFonte.get(s.id) || { id: s.id, nome: s.nome, entradas: 0, saidas: 0 };
+      item.saidas = s.total;
+      porFonte.set(s.id, item);
+    }
+    setRelFontes([...porFonte.values()]);
     } catch (err) {
       setErro(err.message || 'Erro ao carregar dados dos relatórios.');
     } finally {
